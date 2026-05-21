@@ -126,7 +126,7 @@ module HebrewText {
     }
 
     // Join words into a space-separated string in logical (forward) order.
-    private function _joinWords(words as Array<String>) as String {
+    function _joinWords(words as Array<String>) as String {
         var s = "";
         for (var i = 0; i < words.size(); i++) {
             if (i > 0) { s = s + " "; }
