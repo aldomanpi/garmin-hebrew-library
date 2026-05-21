@@ -34,6 +34,8 @@ module HebrewText {
         private var mLayoutDone   as Boolean = false;
         private var mFont         as Graphics.FontDefinition? = null;
         private var mFontH        as Number  = 0;
+        private var mDcHeight     as Number  = 0;
+        private var mTitleH       as Number  = 0;
         private var mCustomFont   as Graphics.FontDefinition? = null;
 
         // title: shown in the top bar; pass "" to hide it entirely.
@@ -199,9 +201,13 @@ module HebrewText {
             var w = dc.getWidth();
             var h = dc.getHeight();
 
+            mDcHeight = h;
+
             if (mFont == null) {
-                mFont  = _pickFont();
-                mFontH = dc.getFontHeight(mFont) + 2;
+                mFont   = _pickFont();
+                mFontH  = dc.getFontHeight(mFont) + 2;
+                mTitleH = mTitle.length() > 0
+                    ? dc.getFontHeight(Graphics.FONT_XTINY) + 6 : 0;
             }
 
             if (!mLayoutDone) {
@@ -217,10 +223,8 @@ module HebrewText {
                 mLayoutDone = true;
             }
 
-            var titleH  = mTitle.length() > 0
-                ? dc.getFontHeight(Graphics.FONT_XTINY) + 6 : 0;
-            var yBase   = h / 2 - mFontH - mScrollPx;
-            var centerX = w / 2;
+            var yBase     = mTitleH + 2 - mScrollPx;
+            var rightEdge = w - 8;
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var y = yBase + i * mFontH;
@@ -229,20 +233,20 @@ module HebrewText {
                 var line = mAllLines[i];
                 if (line.length() > 0 && line.substring(0, 1).equals("|")) {
                     dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(centerX, y, mFont as Graphics.FontDefinition,
+                    dc.drawText(rightEdge, y, mFont as Graphics.FontDefinition,
                                 line.substring(1, line.length()),
-                                Graphics.TEXT_JUSTIFY_CENTER);
+                                Graphics.TEXT_JUSTIFY_RIGHT);
                 } else {
                     dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(centerX, y, mFont as Graphics.FontDefinition,
-                                line, Graphics.TEXT_JUSTIFY_CENTER);
+                    dc.drawText(rightEdge, y, mFont as Graphics.FontDefinition,
+                                line, Graphics.TEXT_JUSTIFY_RIGHT);
                 }
             }
 
             // Redraw title bar on top so scrolled text behind it is masked.
-            if (mTitle.length() > 0) {
+            if (mTitleH > 0) {
                 dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
-                dc.fillRectangle(0, 0, w, titleH);
+                dc.fillRectangle(0, 0, w, mTitleH);
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, 2, Graphics.FONT_XTINY, mTitle,
                             Graphics.TEXT_JUSTIFY_CENTER);
@@ -252,9 +256,10 @@ module HebrewText {
         // ── Private helpers ──────────────────────────────────────────────────
 
         private function _maxScrollPx() as Number {
-            var n = mAllLines.size();
-            if (n <= 1 || mFontH == 0) { return 0; }
-            return (n - 2) * mFontH;
+            if (mFontH == 0 || mAllLines.size() == 0 || mDcHeight == 0) { return 0; }
+            var textAreaH = mDcHeight - mTitleH - 4;
+            var max = mAllLines.size() * mFontH - textAreaH;
+            return max > 0 ? max : 0;
         }
 
         private function _pickFont() as Graphics.FontDefinition {
