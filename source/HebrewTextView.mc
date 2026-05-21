@@ -233,13 +233,13 @@ module HebrewText {
                 var line = mAllLines[i];
                 if (line.length() > 0 && line.substring(0, 1).equals("|")) {
                     dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(rightEdge, y, mFont as Graphics.FontDefinition,
-                                line.substring(1, line.length()),
-                                Graphics.TEXT_JUSTIFY_RIGHT);
+                    drawText(dc, rightEdge, y, mFont as Graphics.FontDefinition,
+                             line.substring(1, line.length()),
+                             Graphics.TEXT_JUSTIFY_RIGHT);
                 } else {
                     dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(rightEdge, y, mFont as Graphics.FontDefinition,
-                                line, Graphics.TEXT_JUSTIFY_RIGHT);
+                    drawText(dc, rightEdge, y, mFont as Graphics.FontDefinition,
+                             line, Graphics.TEXT_JUSTIFY_RIGHT);
                 }
             }
 
