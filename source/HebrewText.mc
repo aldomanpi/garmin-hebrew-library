@@ -1,45 +1,45 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 
-// Utility functions for right-to-left Hebrew text rendering on Garmin watches.
+// Utility functions for RTL Hebrew text on Garmin watches.
 //
-// All Hebrew characters in your text must be Private Use Area (U+E000+) code
-// points — use tools/gen_font.py to produce a PUA-normalised copy of your
-// source files and the matching hebrew.fnt + hebrew.png sprite sheet.
+// All Hebrew characters in source strings must be Private Use Area (U+E000+)
+// code points so Garmin's BiDi engine never fires on them.  Use
+// tools/gen_font.py to produce PUA-normalised .mc files and the matching
+// hebrew.fnt + hebrew.png sprite sheet.
 //
-// Rendering works by manually reversing both character order within each word
-// and word order across each display line before handing the string to
-// dc.drawText(), which renders strictly left-to-right.  Because every glyph
-// is a PUA code point, Garmin's BiDi engine never fires.
+// RTL rendering works by manually reversing character order within each word
+// and word order across each display line before passing the string to
+// dc.drawText(), which renders strictly left-to-right.
 module HebrewText {
 
-    // CIQ 3.2-compatible string split (String.split() is not available in 3.2).
+    // CIQ 3.2-compatible split (String.split() unavailable before CIQ 4).
     function strSplit(str as String, delim as String) as Array<String> {
         var result = [] as Array<String>;
-        var dlen = delim.length();
-        var remaining = str;
-        var idx = remaining.find(delim);
+        var dlen   = delim.length();
+        var rem    = str;
+        var idx    = rem.find(delim);
         while (idx != null) {
-            result.add(remaining.substring(0, idx));
-            remaining = remaining.substring(idx + dlen, remaining.length());
-            idx = remaining.find(delim);
+            result.add(rem.substring(0, idx));
+            rem = rem.substring(idx + dlen, rem.length());
+            idx = rem.find(delim);
         }
-        result.add(remaining);
+        result.add(rem);
         return result;
     }
 
-    // Reverse the characters within a single word.
+    // Reverse characters within one word.
     function reverseStr(word as String) as String {
         var len = word.length();
-        var s = "";
+        var s   = "";
         for (var i = len - 1; i >= 0; i--) {
             s = s + word.substring(i, i + 1);
         }
         return s;
     }
 
-    // Reverse word order on a line AND character order within each word.
-    // Passing the result to a LTR drawText call produces correct RTL output.
+    // Reverse word order on a line AND character order within each word so
+    // that a plain LTR drawText call produces correct RTL Hebrew output.
     function reverseJoin(words as Array<String>) as String {
         var s = "";
         for (var i = words.size() - 1; i >= 0; i--) {
@@ -49,17 +49,15 @@ module HebrewText {
         return s;
     }
 
-    // Word-wrap one block of Hebrew text into display-ready RTL lines.
+    // Word-wrap one text block into display-ready RTL lines.
     //
-    // Text format:
-    //   "\n\n"  paragraph break  — a blank line is inserted between paragraphs
-    //   "\n"    soft line break  — treated as a space by the word-wrapper
-    //   "|..."  section header  — returned as a single reversed line with
-    //                             the "|" prefix intact (draw in a different
-    //                             colour to distinguish from body text)
+    // Format rules:
+    //   "\n\n"  paragraph break — blank line inserted between paragraphs
+    //   "\n"    soft break      — treated as a space by the word-wrapper
+    //   "|..."  section header  — returned as one reversed line, "|" prefix
+    //                             kept intact so callers can style it differently
     //
-    // Every returned line is already reversed (reverseJoin applied); callers
-    // pass the string directly to dc.drawText() for correct RTL rendering.
+    // Every returned line is already reversed; pass directly to dc.drawText().
     function layoutLines(dc as Graphics.Dc, text as String,
                          font as Graphics.FontDefinition,
                          maxWidth as Number) as Array<String> {
@@ -83,14 +81,14 @@ module HebrewText {
                 paraText = paraText + srcLines[sl];
             }
 
-            var words = strSplit(paraText, " ");
+            var words     = strSplit(paraText, " ");
             var lineWords = [] as Array<String>;
             var lineWidth = 0;
 
             for (var wi = 0; wi < words.size(); wi++) {
-                var word = words[wi];
+                var word  = words[wi];
                 if (word.length() == 0) { continue; }
-                var wordW = dc.getTextWidthInPixels(word, font);
+                var wordW  = dc.getTextWidthInPixels(word, font);
                 var spaceW = lineWords.size() > 0
                     ? dc.getTextWidthInPixels(" ", font) : 0;
 
