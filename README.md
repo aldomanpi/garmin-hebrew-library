@@ -170,19 +170,23 @@ mArea.setBackgroundColor(Graphics.COLOR_DK_GRAY);
 
 ### Full-page scrollable viewer — `HebrewText.View`
 
-For long texts that need touch/button scrolling (no built-in Garmin equivalent):
+For long texts that need touch/button scrolling (no built-in Garmin equivalent).
+Same options as `TextArea`, plus `:title` for an optional top bar:
 
 ```monkey-c
-var view = new HebrewText.View("Shacharit", [
-    "|שחרית",          // section header (gray)
-    firstParagraph,
-    secondParagraph,
-]);
+var view = new HebrewText.View({
+    :text          => myText,
+    :title         => "Shacharit",
+    :color         => Graphics.COLOR_WHITE,
+    :font          => Rez.Fonts.hebrewFont,
+    :justification => Graphics.TEXT_JUSTIFY_RIGHT,
+});
 WatchUi.pushView(view, new HebrewText.Delegate(view), WatchUi.SLIDE_LEFT);
 ```
 
-Pass `""` as the title to hide the title bar.  Each element of the array
-is word-wrapped independently with a blank separator line between them.
+Omit `:title` (or pass `""`) to hide the title bar.  All the same setters
+work at runtime: `setText()`, `setColor()`, `setBackgroundColor()`,
+`setFont()`, `setJustification()`.
 
 ## Text format
 
@@ -238,10 +242,22 @@ function setJustification(j as Number) as Void
 ### `HebrewText.View` — full-page scrollable viewer
 
 ```monkey-c
-function initialize(title as String, lines as Array<String>)
+function initialize(options as {
+    :text          as String,
+    :title         as String,                     // top bar label (omit to hide)
+    :color         as Graphics.ColorType,         // default COLOR_WHITE
+    :backgroundColor as Graphics.ColorType,        // default COLOR_BLACK
+    :font          as Graphics.FontDefinition,    // default hebrewFont resource
+    :justification as Number,                     // default TEXT_JUSTIFY_RIGHT
+})
+function draw(dc as Graphics.Dc) as Void         // called automatically by the framework
+function setText(text as String) as Void
+function setColor(color as Graphics.ColorType) as Void
+function setBackgroundColor(color as Graphics.ColorType) as Void
 function setFont(font as Graphics.FontDefinition) as Void
-function scrollDown() as Boolean   // false = already at bottom
-function scrollUp()   as Boolean   // false = already at top
+function setJustification(j as Number) as Void
+function scrollDown() as Boolean                 // false = already at bottom
+function scrollUp()   as Boolean                 // false = already at top
 function isAtEnd()    as Boolean
 function isAtStart()  as Boolean
 ```
