@@ -5,23 +5,31 @@ import Toybox.WatchUi;
 
 module HebrewText {
 
-    // Smooth-scrolling RTL Hebrew text viewer.
+    // Full-screen scrollable Hebrew text viewer.
     //
-    // Usage:
-    //   var view = new HebrewText.View("Title", [puaEncodedText]);
+    // Constructor options mirror HebrewText.TextArea / WatchUi.TextArea,
+    // plus :title for an optional top bar:
+    //
+    //   var view = new HebrewText.View({
+    //       :text          => myPuaText,
+    //       :title         => "Shacharit",
+    //       :color         => Graphics.COLOR_WHITE,
+    //       :font          => Rez.Fonts.hebrewFont,
+    //       :justification => Graphics.TEXT_JUSTIFY_RIGHT,
+    //   });
     //   WatchUi.pushView(view, new HebrewText.Delegate(view), WatchUi.SLIDE_LEFT);
-    //
-    // Strings must be PUA-encoded.  Run tools/gen_font.py on your source
-    // files to produce the normalised .mc files and hebrew.fnt / hebrew.png.
     //
     // Text block format:
     //   "\n\n"  paragraph break
     //   "\n"    soft break (word-wrapper treats as space)
-    //   "|..."  section header (drawn in COLOR_LT_GRAY)
+    //   "|..."  section header (drawn dimmer than body text)
     class View extends WatchUi.View {
 
         private var mLines        as Array<String>;
         private var mTitle        as String;
+        private var mColor        as Graphics.ColorType;
+        private var mBgColor      as Graphics.ColorType;
+        private var mJustification as Number;
         private var mAllLines     as Array<String> = [] as Array<String>;
         private var mScrollPx     as Number  = 0;
         private var mScrollTarget as Number  = 0;
@@ -38,16 +46,48 @@ module HebrewText {
         private var mTitleH       as Number  = 0;
         private var mCustomFont   as Graphics.FontDefinition? = null;
 
-        // title: shown in the top bar; pass "" to hide it entirely.
-        // lines: array of text blocks, each word-wrapped independently.
-        function initialize(title as String, lines as Array<String>) {
+        function initialize(options as Lang.Dictionary) {
             View.initialize();
-            mTitle = title;
-            mLines = lines;
+
+            var v;
+            mLines         = [] as Array<String>;
+            mTitle         = "";
+            mColor         = Graphics.COLOR_WHITE as Graphics.ColorType;
+            mBgColor       = Graphics.COLOR_BLACK as Graphics.ColorType;
+            mJustification = Graphics.TEXT_JUSTIFY_RIGHT;
+
+            v = options.get(:text);
+            if (v != null) { mLines = [v as String]; }
+
+            v = options.get(:title);           if (v != null) { mTitle         = v as String; }
+            v = options.get(:color);           if (v != null) { mColor         = v as Graphics.ColorType; }
+            v = options.get(:backgroundColor); if (v != null) { mBgColor       = v as Graphics.ColorType; }
+            v = options.get(:font);            if (v != null) { mCustomFont     = v as Graphics.FontDefinition; }
+            v = options.get(:justification);   if (v != null) { mJustification  = v as Number; }
         }
 
-        // Replace the default hebrewFont resource with a custom FontDefinition.
-        // Call before the view is first drawn; triggers a full layout rebuild.
+        function setText(text as String) as Void {
+            mLines      = [text];
+            mLayoutDone = false;
+            WatchUi.requestUpdate();
+        }
+
+        function setColor(color as Graphics.ColorType) as Void {
+            mColor = color;
+            WatchUi.requestUpdate();
+        }
+
+        function setBackgroundColor(color as Graphics.ColorType) as Void {
+            mBgColor = color;
+            WatchUi.requestUpdate();
+        }
+
+        function setJustification(j as Number) as Void {
+            mJustification = j;
+            WatchUi.requestUpdate();
+        }
+
+        // Replace the font; triggers a full layout rebuild on next draw.
         function setFont(font as Graphics.FontDefinition) as Void {
             mCustomFont = font;
             mFont       = null;
@@ -57,8 +97,7 @@ module HebrewText {
 
         // ── Navigation ───────────────────────────────────────────────────────
 
-        // Scroll one line toward the end. Returns false when already at bottom
-        // (caller should then pop the view).
+        // Scroll one line toward the end. Returns false when already at bottom.
         function scrollDown() as Boolean {
             if (mFontH == 0) { return false; }
             var mx = _maxScrollPx();
@@ -195,7 +234,7 @@ module HebrewText {
         // ── Drawing ──────────────────────────────────────────────────────────
 
         function onUpdate(dc as Graphics.Dc) as Void {
-            dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
+            dc.setColor(mBgColor, mBgColor);
             dc.clear();
 
             var w = dc.getWidth();
@@ -223,8 +262,8 @@ module HebrewText {
                 mLayoutDone = true;
             }
 
-            var yBase     = mTitleH + 2 - mScrollPx;
-            var rightEdge = w - 8;
+            var yBase = mTitleH + 2 - mScrollPx;
+            var x     = _xForJustification(w);
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var y = yBase + i * mFontH;
@@ -233,27 +272,35 @@ module HebrewText {
                 var line = mAllLines[i];
                 if (line.length() > 0 && line.substring(0, 1).equals("|")) {
                     dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                    drawText(dc, rightEdge, y, mFont as Graphics.FontDefinition,
-                             line.substring(1, line.length()),
-                             Graphics.TEXT_JUSTIFY_RIGHT);
+                    drawText(dc, x, y, mFont as Graphics.FontDefinition,
+                             line.substring(1, line.length()), mJustification);
                 } else {
-                    dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-                    drawText(dc, rightEdge, y, mFont as Graphics.FontDefinition,
-                             line, Graphics.TEXT_JUSTIFY_RIGHT);
+                    dc.setColor(mColor, Graphics.COLOR_TRANSPARENT);
+                    drawText(dc, x, y, mFont as Graphics.FontDefinition,
+                             line, mJustification);
                 }
             }
 
             // Redraw title bar on top so scrolled text behind it is masked.
             if (mTitleH > 0) {
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+                dc.setColor(mBgColor, mBgColor);
                 dc.fillRectangle(0, 0, w, mTitleH);
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                dc.setColor(mColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(w / 2, 2, Graphics.FONT_XTINY, mTitle,
                             Graphics.TEXT_JUSTIFY_CENTER);
             }
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
+
+        private function _xForJustification(w as Number) as Number {
+            if (mJustification == Graphics.TEXT_JUSTIFY_CENTER) {
+                return w / 2;
+            } else if (mJustification == Graphics.TEXT_JUSTIFY_LEFT) {
+                return 8;
+            }
+            return w - 8;
+        }
 
         private function _maxScrollPx() as Number {
             if (mFontH == 0 || mAllLines.size() == 0 || mDcHeight == 0) { return 0; }
