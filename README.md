@@ -6,15 +6,26 @@ with an API that mirrors the native `dc.drawText()` call.
 
 ## Quick start
 
+**Single line** — mirrors `dc.drawText()`:
 ```monkey-c
-// Draw a line of Hebrew text — same signature as dc.drawText()
 HebrewText.drawText(dc, dc.getWidth() - 8, y,
                     Rez.Fonts.hebrewFont, myText,
                     Graphics.TEXT_JUSTIFY_RIGHT);
 ```
 
-That's it. Word order and character order are reversed automatically for RTL
-display.  For multi-line / word-wrapped text see [Multi-line text](#multi-line-text).
+**Word-wrapped area** — mirrors `WatchUi.TextArea`:
+```monkey-c
+var area = new HebrewText.TextArea({
+    :text   => myText,
+    :color  => Graphics.COLOR_WHITE,
+    :font   => Rez.Fonts.hebrewFont,
+    :locX   => 10,  :locY    => 40,
+    :width  => 220, :height  => 180,
+});
+area.draw(dc);
+```
+
+Both handle RTL reversal and nikkud automatically.
 
 ## How it works
 
@@ -115,67 +126,51 @@ base.barrelPath = $(base.barrelPath);path/to/HebrewText.barrel
 
 ## Usage
 
-### Drawing a single line
+### Single line — `HebrewText.drawText()`
+
+Mirrors `dc.drawText()` exactly.  Use anywhere you'd normally call `dc.drawText()`:
 
 ```monkey-c
-import Toybox.Graphics;
-
 function onUpdate(dc as Graphics.Dc) as Void {
     var font = WatchUi.loadResource(Rez.Fonts.hebrewFont) as Graphics.FontDefinition;
-    var w    = dc.getWidth();
-
-    // Right-aligned (standard for Hebrew)
-    HebrewText.drawText(dc, w - 8, 40, font, myText, Graphics.TEXT_JUSTIFY_RIGHT);
-
-    // Centered
-    HebrewText.drawText(dc, w / 2, 40, font, myText, Graphics.TEXT_JUSTIFY_CENTER);
+    HebrewText.drawText(dc, dc.getWidth() - 8, 40, font,
+                        myText, Graphics.TEXT_JUSTIFY_RIGHT);
 }
 ```
 
-### Multi-line text
+### Word-wrapped area — `HebrewText.TextArea`
 
-Use `layoutLines()` to word-wrap, then draw each line:
+Mirrors `WatchUi.TextArea`.  Drop it into any existing `onUpdate()` the same way:
 
 ```monkey-c
-var font   = WatchUi.loadResource(Rez.Fonts.hebrewFont) as Graphics.FontDefinition;
-var w      = dc.getWidth();
-var lineH  = dc.getFontHeight(font) + 2;
-var lines  = HebrewText.layoutLines(dc, myText, font, w);
+// Create once (e.g. in initialize() or onLayout())
+mArea = new HebrewText.TextArea({
+    :text          => myText,
+    :color         => Graphics.COLOR_WHITE,
+    :font          => Rez.Fonts.hebrewFont,
+    :justification => Graphics.TEXT_JUSTIFY_RIGHT,
+    :locX          => 10,
+    :locY          => 40,
+    :width         => dc.getWidth() - 20,
+    :height        => dc.getHeight() - 50,
+});
 
-for (var i = 0; i < lines.size(); i++) {
-    HebrewText.drawText(dc, w - 8, 10 + i * lineH, font,
-                        lines[i], Graphics.TEXT_JUSTIFY_RIGHT);
-}
+// In onUpdate():
+mArea.draw(dc);
 ```
 
-`layoutLines()` returns lines in logical order; `drawText()` applies the
-RTL reversal when drawing.  Do **not** pass `layoutLines()` output to
-`dc.drawText()` directly — the reversal would be skipped.
-
-### Section headers in multi-line text
-
-Lines starting with `"|"` are section headers.  Strip the prefix and
-style them separately:
-
+Update content at any time with the same setters as `WatchUi.TextArea`:
 ```monkey-c
-for (var i = 0; i < lines.size(); i++) {
-    var line = lines[i];
-    if (line.length() > 0 && line.substring(0, 1).equals("|")) {
-        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-        HebrewText.drawText(dc, w - 8, y, font,
-                            line.substring(1, line.length()),
-                            Graphics.TEXT_JUSTIFY_RIGHT);
-    } else {
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        HebrewText.drawText(dc, w - 8, y, font, line, Graphics.TEXT_JUSTIFY_RIGHT);
-    }
-    y += lineH;
-}
+mArea.setText(newText);
+mArea.setColor(Graphics.COLOR_YELLOW);
+mArea.setFont(Rez.Fonts.hebrewFont);
+mArea.setJustification(Graphics.TEXT_JUSTIFY_CENTER);
+mArea.setBackgroundColor(Graphics.COLOR_DK_GRAY);
 ```
 
-### Full-page scrollable viewer
+### Full-page scrollable viewer — `HebrewText.View`
 
-For long texts that need touch/button scrolling, use the built-in view:
+For long texts that need touch/button scrolling (no built-in Garmin equivalent):
 
 ```monkey-c
 var view = new HebrewText.View("Shacharit", [
@@ -211,37 +206,36 @@ PUA-encoded output.
 
 ## API reference
 
-### `HebrewText.drawText()`
+### `HebrewText.drawText()` — mirrors `dc.drawText()`
 
 ```monkey-c
-function drawText(
-    dc            as Graphics.Dc,
-    x             as Number,
-    y             as Number,
-    font          as Graphics.FontDefinition,
-    text          as String,
-    justification as Number
-) as Void
+function drawText(dc, x, y, font, text, justification) as Void
 ```
 
-Draw a PUA-encoded Hebrew string with automatic RTL reversal.
-Same signature as `dc.drawText()`.
-
-### `HebrewText.layoutLines()`
+### `HebrewText.TextArea` — mirrors `WatchUi.TextArea`
 
 ```monkey-c
-function layoutLines(
-    dc       as Graphics.Dc,
-    text     as String,
-    font     as Graphics.FontDefinition,
-    maxWidth as Number
-) as Array<String>
+function initialize(options as {
+    :text          as String,
+    :color         as Graphics.ColorType,         // default COLOR_WHITE
+    :backgroundColor as Graphics.ColorType,        // default COLOR_TRANSPARENT
+    :font          as Graphics.FontDefinition,    // default FONT_MEDIUM
+    :justification as Number,                     // default TEXT_JUSTIFY_RIGHT
+    :locX          as Numeric,                    // default 0
+    :locY          as Numeric,                    // default 0
+    :width         as Numeric,                    // default dc.getWidth() - locX
+    :height        as Numeric,                    // default unconstrained
+    :visible       as Boolean,                    // default true
+})
+function draw(dc as Graphics.Dc) as Void
+function setText(text as String) as Void
+function setColor(color as Graphics.ColorType) as Void
+function setBackgroundColor(color as Graphics.ColorType) as Void
+function setFont(font as Graphics.FontDefinition) as Void
+function setJustification(j as Number) as Void
 ```
 
-Word-wrap `text` into lines that fit within `maxWidth`.  Returns lines in
-logical order; always draw with `HebrewText.drawText()`, not `dc.drawText()`.
-
-### `HebrewText.View`
+### `HebrewText.View` — full-page scrollable viewer
 
 ```monkey-c
 function initialize(title as String, lines as Array<String>)
@@ -261,6 +255,16 @@ function initialize(view as HebrewText.View)
 Handles `onNextPage`, `onPreviousPage`, `onBack`, `onSelect`, `onSwipe`,
 `onDrag`.  Works on button-only and touchscreen watches.  Pops the view
 automatically when the user scrolls past the first or last line.
+
+### `HebrewText.layoutLines()` — low-level word-wrap
+
+```monkey-c
+function layoutLines(dc, text, font, maxWidth) as Array<String>
+```
+
+Returns lines in logical order.  Always draw the results with
+`HebrewText.drawText()`, not `dc.drawText()` — the RTL reversal is applied
+at draw time.
 
 ## Supported devices
 
