@@ -7,16 +7,17 @@ module HebrewText {
 
     // Full-screen scrollable Hebrew text viewer.
     //
-    // Constructor options mirror HebrewText.TextArea / WatchUi.TextArea,
-    // plus :title for an optional top bar:
+    // Constructor options:
     //
-    //   var view = new HebrewText.View({
-    //       :text          => myPuaText,
-    //       :title         => "Shacharit",
-    //       :color         => Graphics.COLOR_WHITE,
-    //       :font          => Rez.Fonts.hebrewFont,
-    //       :justification => Graphics.TEXT_JUSTIFY_RIGHT,
-    //   });
+    //   :pages  => Array<String>   — each element laid out independently;
+    //                                use for prayer books where some blocks
+    //                                are "|..." section headers and others
+    //                                are multi-paragraph body text.
+    //   :text   => String          — single text block (convenience alias
+    //                                for :pages with one element).
+    //   :title  => String          — top bar label; omit or pass "" to hide.
+    //   :color, :backgroundColor, :font, :justification — as WatchUi.TextArea.
+    //
     //   WatchUi.pushView(view, new HebrewText.Delegate(view), WatchUi.SLIDE_LEFT);
     //
     // Text block format:
@@ -56,14 +57,21 @@ module HebrewText {
             mBgColor       = Graphics.COLOR_BLACK as Graphics.ColorType;
             mJustification = Graphics.TEXT_JUSTIFY_RIGHT;
 
-            v = options.get(:text);
-            if (v != null) { mLines = [v as String]; }
+            // :pages — Array<String>, each element laid out independently.
+            // :text  — String, convenience alias for a single-element :pages.
+            v = options.get(:pages);
+            if (v != null) {
+                mLines = v as Array<String>;
+            } else {
+                v = options.get(:text);
+                if (v != null) { mLines = [v as String]; }
+            }
 
             v = options.get(:title);           if (v != null) { mTitle         = v as String; }
             v = options.get(:color);           if (v != null) { mColor         = v as Graphics.ColorType; }
             v = options.get(:backgroundColor); if (v != null) { mBgColor       = v as Graphics.ColorType; }
-            v = options.get(:font);            if (v != null) { mCustomFont     = v as Graphics.FontDefinition; }
-            v = options.get(:justification);   if (v != null) { mJustification  = v as Number; }
+            v = options.get(:font);            if (v != null) { mCustomFont    = v as Graphics.FontDefinition; }
+            v = options.get(:justification);   if (v != null) { mJustification = v as Number; }
         }
 
         function setText(text as String) as Void {
@@ -87,7 +95,6 @@ module HebrewText {
             WatchUi.requestUpdate();
         }
 
-        // Replace the font; triggers a full layout rebuild on next draw.
         function setFont(font as Graphics.FontDefinition) as Void {
             mCustomFont = font;
             mFont       = null;
@@ -97,7 +104,6 @@ module HebrewText {
 
         // ── Navigation ───────────────────────────────────────────────────────
 
-        // Scroll one line toward the end. Returns false when already at bottom.
         function scrollDown() as Boolean {
             if (mFontH == 0) { return false; }
             var mx = _maxScrollPx();
@@ -110,7 +116,6 @@ module HebrewText {
             return false;
         }
 
-        // Scroll one line toward the top. Returns false when already at top.
         function scrollUp() as Boolean {
             if (mScrollTarget > 0) {
                 mScrollTarget -= mFontH;
@@ -129,9 +134,6 @@ module HebrewText {
             (mScrollTimer as Timer.Timer).start(method(:onScrollTick), 16, true);
         }
 
-        // 16 ms timer tick — two modes:
-        //   momentum: 0.92 friction coast after touch release
-        //   button:   linear 5 px/tick snap toward mScrollTarget
         public function onScrollTick() as Void {
             if (mMomentum) {
                 mVelocity = mVelocity * 0.92f;
@@ -177,13 +179,6 @@ module HebrewText {
         }
 
         // ── Touch input ──────────────────────────────────────────────────────
-        //
-        // Jump fix: the first onDrag event after touch-down carries the finger
-        // already in motion, so we absorb it as the new reference rather than
-        // computing a delta — the first visible frame is always incremental.
-        //
-        // Momentum: velocity is a 60/40 EMA of per-frame deltas.  On release,
-        // if speed > 1.5 px/frame the timer coasts with 0.92 friction/tick.
 
         function touchDown(y as Number) as Void {
             if (mScrollTimer != null) { (mScrollTimer as Timer.Timer).stop(); }
@@ -217,8 +212,6 @@ module HebrewText {
             _launchMomentumOrSnap();
         }
 
-        // Call when a BehaviorDelegate swipe event interrupts the drag sequence
-        // so momentum fires correctly for fast flicks.
         function cancelDrag() as Void {
             if (!mDragging) { return; }
             mDragging = false;
@@ -239,7 +232,6 @@ module HebrewText {
 
             var w = dc.getWidth();
             var h = dc.getHeight();
-
             mDcHeight = h;
 
             if (mFont == null) {
@@ -262,8 +254,8 @@ module HebrewText {
                 mLayoutDone = true;
             }
 
-            var yBase = mTitleH + 2 - mScrollPx;
             var x     = _xForJustification(w);
+            var yBase = mTitleH + 2 - mScrollPx;
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var y = yBase + i * mFontH;
@@ -281,7 +273,6 @@ module HebrewText {
                 }
             }
 
-            // Redraw title bar on top so scrolled text behind it is masked.
             if (mTitleH > 0) {
                 dc.setColor(mBgColor, mBgColor);
                 dc.fillRectangle(0, 0, w, mTitleH);
@@ -294,11 +285,8 @@ module HebrewText {
         // ── Private helpers ──────────────────────────────────────────────────
 
         private function _xForJustification(w as Number) as Number {
-            if (mJustification == Graphics.TEXT_JUSTIFY_CENTER) {
-                return w / 2;
-            } else if (mJustification == Graphics.TEXT_JUSTIFY_LEFT) {
-                return 8;
-            }
+            if (mJustification == Graphics.TEXT_JUSTIFY_CENTER) { return w / 2; }
+            if (mJustification == Graphics.TEXT_JUSTIFY_LEFT)   { return 8; }
             return w - 8;
         }
 
