@@ -120,7 +120,10 @@ def read_text_from_file(path):
     return src
 
 
-def render_glyph(text, font, padding=3):
+def render_glyph(text, font, padding=0):
+    # padding=0: glyph image dimensions == bbox dimensions == xadvance.
+    # No transparent border means adjacent glyphs can't overwrite each other's
+    # ink when packed tightly.
     bbox  = font.getbbox(text)
     w     = max(bbox[2] - bbox[0], 1) + padding * 2
     h     = max(bbox[3] - bbox[1], 1) + padding * 2
@@ -130,7 +133,7 @@ def render_glyph(text, font, padding=3):
               text, font=font, fill=(255, 255, 255, 255))
     xoff = -padding
     yoff = bbox[1] - padding
-    xadv = max(bbox[2] - bbox[0], 1)  # tight: advance = content width, no over-clip
+    xadv = max(bbox[2] - bbox[0], 1)
     return img, xoff, yoff, xadv
 
 
@@ -197,11 +200,13 @@ def main():
     pil_font       = ImageFont.truetype(font_path, args.font_size)
     ascent, descent = pil_font.getmetrics()
     line_height    = ascent + descent + 2
-    PADDING        = 1
+    PADDING        = 0
     COLS           = 24
     ROWS           = math.ceil(len(glyph_list) / COLS)
-    CELL_W         = args.font_size + PADDING * 4
-    CELL_H         = args.font_size + PADDING * 4
+    # Cell allowance: combined Hebrew letter+nikkud glyphs need vertical
+    # headroom even with zero padding; horizontal cell stays generous too.
+    CELL_W         = args.font_size + 6
+    CELL_H         = args.font_size + 12
     IMG_W          = next_pow2(COLS * CELL_W)
     IMG_H          = next_pow2(ROWS * CELL_H)
 
