@@ -92,6 +92,56 @@ module HebrewText {
         }
     }
 
+    // Pre-reverse a logical Hebrew string for LTR display rendering.
+    // Call once at layout time and cache the result; pass it to
+    // drawTextPreprocessed() to avoid repeating this work every frame.
+    function reverseForDisplay(text as String) as String {
+        return reverseJoin(strSplit(text, " "));
+    }
+
+    // Compute per-character advance widths for a display-ready (pre-reversed) string.
+    // Call once at layout time alongside reverseForDisplay(); pass the result to
+    // drawTextPreprocessed() so getTextWidthInPixels is never called per-frame.
+    function computeLineAdvances(
+        dc   as Graphics.Dc,
+        text as String,
+        font as Graphics.FontDefinition
+    ) as Array<Number> {
+        var len      = text.length();
+        var advances = [] as Array<Number>;
+        for (var i = 0; i < len; i++) {
+            var ch = text.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            advances.add(ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST));
+        }
+        return advances;
+    }
+
+    // Draw a pre-reversed Hebrew line using pre-computed per-character advances.
+    // Eliminates string reversal and the double getTextWidthInPixels pass of
+    // drawText(). Prepare inputs once with reverseForDisplay() + computeLineAdvances().
+    function drawTextPreprocessed(
+        dc       as Graphics.Dc,
+        x        as Number,
+        y        as Number,
+        font     as Graphics.FontDefinition,
+        reversed as String,
+        advances as Array<Number>,
+        totalW   as Number,
+        justif   as Number
+    ) as Void {
+        var len = reversed.length();
+        if (len == 0) { return; }
+        var cx;
+        if (justif == Graphics.TEXT_JUSTIFY_CENTER)     { cx = x - totalW / 2; }
+        else if (justif == Graphics.TEXT_JUSTIFY_RIGHT) { cx = x - totalW; }
+        else                                             { cx = x; }
+        for (var i = 0; i < len; i++) {
+            dc.drawText(cx, y, font, reversed.substring(i, i + 1), Graphics.TEXT_JUSTIFY_LEFT);
+            cx += advances[i];
+        }
+    }
+
     // Word-wrap one text block into lines sized to fit maxWidth.
     //
     // Returns an Array<String> of lines in logical order (not yet reversed).

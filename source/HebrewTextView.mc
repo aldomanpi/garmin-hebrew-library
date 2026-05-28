@@ -55,6 +55,15 @@ module HebrewText {
         private var mStartCenter  as Boolean = false;
         private var mStartOffset  as Number  = 0;
 
+        // Render cache: built once after layout, invalidated on text/font change.
+        // Stores pre-reversed strings, per-character advances, and total widths so
+        // onUpdate never does string manipulation or getTextWidthInPixels per frame.
+        private var mRenderCacheBuilt as Boolean        = false;
+        private var mAllLinesReversed as Array<String>  = [] as Array<String>;
+        private var mAllLineAdvances  as Array          = [] as Array;
+        private var mAllLineWidths    as Array<Number>  = [] as Array<Number>;
+        private var mLineIsHeader     as Array<Boolean> = [] as Array<Boolean>;
+
         function initialize(options as Lang.Dictionary) {
             View.initialize();
 
@@ -84,8 +93,9 @@ module HebrewText {
         }
 
         function setText(text as String) as Void {
-            mLines      = [text];
-            mLayoutDone = false;
+            mLines            = [text];
+            mLayoutDone       = false;
+            mRenderCacheBuilt = false;
             WatchUi.requestUpdate();
         }
 
@@ -105,10 +115,11 @@ module HebrewText {
         }
 
         function setFont(font as Graphics.FontDefinition) as Void {
-            mCustomFont = font;
-            mFont       = null;
-            mFontH      = 0;
-            mLayoutDone = false;
+            mCustomFont       = font;
+            mFont             = null;
+            mFontH            = 0;
+            mLayoutDone       = false;
+            mRenderCacheBuilt = false;
         }
 
         // ── Navigation ───────────────────────────────────────────────────────
@@ -264,6 +275,10 @@ module HebrewText {
                 mLayoutDone = true;
             }
 
+            if (!mRenderCacheBuilt) {
+                _buildRenderCache(dc);
+            }
+
             var x     = _xForJustification(w);
             var yBase = mTitleH + 2 + mStartOffset - mScrollPx;
 
@@ -271,16 +286,18 @@ module HebrewText {
                 var y = yBase + i * mFontH;
                 if (y + mFontH <= 0) { continue; }
                 if (y >= h)          { break; }
-                var line = mAllLines[i];
-                if (line.length() > 0 && line.substring(0, 1).equals("|")) {
+                var rev = mAllLinesReversed[i];
+                if (rev.length() == 0) { continue; }
+                if (mLineIsHeader[i]) {
                     dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
-                    drawText(dc, x, y, mFont as Graphics.FontDefinition,
-                             line.substring(1, line.length()), mJustification);
                 } else {
                     dc.setColor(mColor, Graphics.COLOR_TRANSPARENT);
-                    drawText(dc, x, y, mFont as Graphics.FontDefinition,
-                             line, mJustification);
                 }
+                drawTextPreprocessed(dc, x, y, mFont as Graphics.FontDefinition,
+                                     rev,
+                                     mAllLineAdvances[i] as Array<Number>,
+                                     mAllLineWidths[i],
+                                     mJustification);
             }
 
             if (mTitleH > 0) {
@@ -293,6 +310,36 @@ module HebrewText {
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
+
+        private function _buildRenderCache(dc as Graphics.Dc) as Void {
+            mAllLinesReversed = [] as Array<String>;
+            mAllLineAdvances  = [] as Array;
+            mAllLineWidths    = [] as Array<Number>;
+            mLineIsHeader     = [] as Array<Boolean>;
+
+            var font = mFont as Graphics.FontDefinition;
+            for (var i = 0; i < mAllLines.size(); i++) {
+                var line = mAllLines[i];
+                if (line.length() == 0) {
+                    mAllLinesReversed.add("");
+                    mAllLineAdvances.add([] as Array<Number>);
+                    mAllLineWidths.add(0);
+                    mLineIsHeader.add(false);
+                } else {
+                    var isHdr = line.substring(0, 1).equals("|");
+                    var text  = isHdr ? line.substring(1, line.length()) : line;
+                    var rev   = reverseForDisplay(text);
+                    var adv   = computeLineAdvances(dc, rev, font);
+                    var w     = 0;
+                    for (var j = 0; j < adv.size(); j++) { w += adv[j]; }
+                    mAllLinesReversed.add(rev);
+                    mAllLineAdvances.add(adv);
+                    mAllLineWidths.add(w);
+                    mLineIsHeader.add(isHdr);
+                }
+            }
+            mRenderCacheBuilt = true;
+        }
 
         private function _xForJustification(w as Number) as Number {
             if (mJustification == Graphics.TEXT_JUSTIFY_CENTER) { return w / 2; }
