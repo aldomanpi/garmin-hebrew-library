@@ -57,6 +57,11 @@ def parse_args():
     p.add_argument("--out-dir", default=None,
                    help="Output directory (default: resources/fonts)")
     p.add_argument("--font-size", type=int, default=22)
+    p.add_argument("--tighten", type=int, default=0, metavar="N",
+                   help="Subtract N pixels from each non-space glyph's xadvance "
+                        "to bring letters visually closer together. Useful for "
+                        "compensating for fonts with generous side-bearings "
+                        "(default: 0).")
     return p.parse_args()
 
 
@@ -236,8 +241,11 @@ def main():
         f.write(f'page id=0 file="hebrew.png"\n')
         f.write(f'chars count={len(char_data)}\n')
         for cid, x, y, w, h, xoff, yoff, xadv in char_data:
+            # Skip space (id 32) to keep word-break width natural; reduce all
+            # other glyphs' advance so adjacent letters draw tighter.
+            adv = xadv if cid == 32 else max(1, xadv - args.tighten)
             f.write(f'char id={cid} x={x} y={y} width={w} height={h} '
-                    f'xoffset={xoff} yoffset={yoff} xadvance={xadv} '
+                    f'xoffset={xoff} yoffset={yoff} xadvance={adv} '
                     f'page=0 chnl=15\n')
     print(f"Font descriptor -> {out_fnt}")
 
