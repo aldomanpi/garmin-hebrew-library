@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
@@ -248,6 +249,7 @@ module HebrewText {
         // ── Drawing ──────────────────────────────────────────────────────────
 
         function onUpdate(dc as Graphics.Dc) as Void {
+            System.println("HTV onUpdate start");
             dc.setColor(mBgColor, mBgColor);
             dc.clear();
 
@@ -256,14 +258,17 @@ module HebrewText {
             mDcHeight = h;
 
             if (mFont == null) {
+                System.println("HTV pickFont");
                 mFont   = _pickFont();
                 mFontH  = dc.getFontHeight(mFont) + 2;
                 mTitleH = mTitle.length() > 0
                     ? dc.getFontHeight(Graphics.FONT_XTINY) + 6 : 0;
                 mStartOffset = mStartCenter ? (h - mTitleH - 4) / 2 : 0;
+                System.println("HTV font ok fontH=" + mFontH);
             }
 
             if (!mLayoutDone) {
+                System.println("HTV layout pages=" + mLines.size());
                 mAllLines = [] as Array<String>;
                 for (var p = 0; p < mLines.size(); p++) {
                     if (p > 0) { mAllLines.add(""); }
@@ -274,10 +279,13 @@ module HebrewText {
                     }
                 }
                 mLayoutDone = true;
+                System.println("HTV layout done lines=" + mAllLines.size());
             }
 
             if (!mRenderCacheBuilt) {
+                System.println("HTV buildCache start lines=" + mAllLines.size());
                 _buildRenderCache(dc);
+                System.println("HTV buildCache done");
             }
 
             var x     = _xForJustification(w);
@@ -316,6 +324,7 @@ module HebrewText {
 
             var font = mFont as Graphics.FontDefinition;
             for (var i = 0; i < mAllLines.size(); i++) {
+                System.println("HTV cache i=" + i);
                 var line = mAllLines[i];
                 if (line.length() == 0) {
                     mAllLinesReversed.add("");
@@ -324,6 +333,7 @@ module HebrewText {
                 } else {
                     var isHdr  = line.substring(0, 1).equals("|");
                     var text   = isHdr ? line.substring(1, line.length()) : line;
+                    System.println("HTV cache rev i=" + i + " len=" + text.length());
                     var rev    = reverseForDisplay(text);
                     var revLen = rev.length();
                     var w      = 0;
@@ -332,6 +342,7 @@ module HebrewText {
                         var cw = dc.getTextWidthInPixels(ch, font);
                         w += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
                     }
+                    System.println("HTV cache w=" + w);
                     mAllLinesReversed.add(rev);
                     mAllLineWidths.add(w);
                     mLineIsHeader.add(isHdr);
