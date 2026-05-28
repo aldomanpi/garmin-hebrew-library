@@ -130,7 +130,7 @@ def render_glyph(text, font, padding=3):
               text, font=font, fill=(255, 255, 255, 255))
     xoff = -padding
     yoff = bbox[1] - padding
-    xadv = int(font.getlength(text)) - 3
+    xadv = max(bbox[2] - bbox[0], 1)  # tight: advance = content width, no over-clip
     return img, xoff, yoff, xadv
 
 
