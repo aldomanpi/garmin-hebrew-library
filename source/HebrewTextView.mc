@@ -9,14 +9,20 @@ module HebrewText {
     //
     // Constructor options:
     //
-    //   :pages  => Array<String>   — each element laid out independently;
-    //                                use for prayer books where some blocks
-    //                                are "|..." section headers and others
-    //                                are multi-paragraph body text.
-    //   :text   => String          — single text block (convenience alias
-    //                                for :pages with one element).
-    //   :title  => String          — top bar label; omit or pass "" to hide.
-    //   :color, :backgroundColor, :font, :justification — as WatchUi.TextArea.
+    //   :pages         => Array<String>   — each element laid out independently;
+    //                                       use for prayer books where some blocks
+    //                                       are "|..." section headers and others
+    //                                       are multi-paragraph body text.
+    //   :text          => String          — single text block (convenience alias
+    //                                       for :pages with one element).
+    //   :title         => String          — top bar label; omit or pass "" to hide.
+    //   :justification => Number          — Graphics.TEXT_JUSTIFY_LEFT / _CENTER /
+    //                                       _RIGHT (default: TEXT_JUSTIFY_RIGHT).
+    //   :startPosition => :top | :center  — where the first line appears initially.
+    //                                       :top    — first line at top (default).
+    //                                       :center — first line at vertical centre;
+    //                                                 scrolling still reaches the top.
+    //   :color, :backgroundColor, :font  — as WatchUi.TextArea.
     //
     //   WatchUi.pushView(view, new HebrewText.Delegate(view), WatchUi.SLIDE_LEFT);
     //
@@ -46,6 +52,8 @@ module HebrewText {
         private var mDcHeight     as Number  = 0;
         private var mTitleH       as Number  = 0;
         private var mCustomFont   as Graphics.FontDefinition? = null;
+        private var mStartCenter  as Boolean = false;
+        private var mStartOffset  as Number  = 0;
 
         function initialize(options as Lang.Dictionary) {
             View.initialize();
@@ -72,6 +80,7 @@ module HebrewText {
             v = options.get(:backgroundColor); if (v != null) { mBgColor       = v as Graphics.ColorType; }
             v = options.get(:font);            if (v != null) { mCustomFont    = v as Graphics.FontDefinition; }
             v = options.get(:justification);   if (v != null) { mJustification = v as Number; }
+            v = options.get(:startPosition);   if (v != null) { mStartCenter   = v.equals(:center); }
         }
 
         function setText(text as String) as Void {
@@ -239,6 +248,7 @@ module HebrewText {
                 mFontH  = dc.getFontHeight(mFont) + 2;
                 mTitleH = mTitle.length() > 0
                     ? dc.getFontHeight(Graphics.FONT_XTINY) + 6 : 0;
+                mStartOffset = mStartCenter ? (h - mTitleH - 4) / 2 : 0;
             }
 
             if (!mLayoutDone) {
@@ -255,7 +265,7 @@ module HebrewText {
             }
 
             var x     = _xForJustification(w);
-            var yBase = mTitleH + 2 - mScrollPx;
+            var yBase = mTitleH + 2 + mStartOffset - mScrollPx;
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var y = yBase + i * mFontH;
@@ -293,7 +303,7 @@ module HebrewText {
         private function _maxScrollPx() as Number {
             if (mFontH == 0 || mAllLines.size() == 0 || mDcHeight == 0) { return 0; }
             var textAreaH = mDcHeight - mTitleH - 4;
-            var max = mAllLines.size() * mFontH - textAreaH;
+            var max = mAllLines.size() * mFontH - textAreaH + mStartOffset;
             return max > 0 ? max : 0;
         }
 
