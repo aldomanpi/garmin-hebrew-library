@@ -130,7 +130,7 @@ def render_glyph(text, font, padding=3):
               text, font=font, fill=(255, 255, 255, 255))
     xoff = -padding
     yoff = bbox[1] - padding
-    xadv = int(font.getlength(text)) - 2
+    xadv = int(font.getlength(text)) - 5
     return img, xoff, yoff, xadv
 
 
