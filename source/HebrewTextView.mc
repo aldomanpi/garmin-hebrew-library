@@ -55,17 +55,6 @@ module HebrewText {
         private var mStartCenter  as Boolean = false;
         private var mStartOffset  as Number  = 0;
 
-        // Render cache: built once after layout, invalidated on text/font change.
-        // mAllLinesReversed + mLineIsHeader are filled immediately (pure string
-        // ops, no DC calls, cannot trip the watchdog).
-        // mAllLineWidths is lazily filled on first draw of each line: -1 means
-        // unmeasured. Once measured the value is stored and subsequent draws use
-        // drawTextWithKnownWidth() — one getTextWidthInPixels pass instead of two.
-        private var mRenderCacheBuilt as Boolean        = false;
-        private var mAllLinesReversed as Array<String>  = [] as Array<String>;
-        private var mAllLineWidths    as Array<Number>  = [] as Array<Number>;
-        private var mLineIsHeader     as Array<Boolean> = [] as Array<Boolean>;
-
         function initialize(options as Lang.Dictionary) {
             View.initialize();
 
@@ -95,9 +84,8 @@ module HebrewText {
         }
 
         function setText(text as String) as Void {
-            mLines            = [text];
-            mLayoutDone       = false;
-            mRenderCacheBuilt = false;
+            mLines      = [text];
+            mLayoutDone = false;
             WatchUi.requestUpdate();
         }
 
@@ -117,11 +105,10 @@ module HebrewText {
         }
 
         function setFont(font as Graphics.FontDefinition) as Void {
-            mCustomFont       = font;
-            mFont             = null;
-            mFontH            = 0;
-            mLayoutDone       = false;
-            mRenderCacheBuilt = false;
+            mCustomFont = font;
+            mFont       = null;
+            mFontH      = 0;
+            mLayoutDone = false;
         }
 
         // ── Navigation ───────────────────────────────────────────────────────
@@ -265,10 +252,13 @@ module HebrewText {
             }
 
             if (!mLayoutDone) {
+                // layoutLinesReversed returns already-reversed lines so the
+                // drawing loop below makes a single native dc.drawText call per
+                // visible line — ~10× fewer DC calls/frame than per-character drawing.
                 mAllLines = [] as Array<String>;
                 for (var p = 0; p < mLines.size(); p++) {
                     if (p > 0) { mAllLines.add(""); }
-                    var pl = layoutLines(dc, mLines[p],
+                    var pl = layoutLinesReversed(dc, mLines[p],
                                         mFont as Graphics.FontDefinition, w);
                     for (var li = 0; li < pl.size(); li++) {
                         mAllLines.add(pl[li]);
@@ -277,31 +267,24 @@ module HebrewText {
                 mLayoutDone = true;
             }
 
-            if (!mRenderCacheBuilt) {
-                _buildRenderCache();
-            }
-
             var x     = _xForJustification(w);
             var yBase = mTitleH + 2 + mStartOffset - mScrollPx;
+            var font  = mFont as Graphics.FontDefinition;
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var y = yBase + i * mFontH;
                 if (y + mFontH <= 0) { continue; }
                 if (y >= h)          { break; }
-                var rev = mAllLinesReversed[i];
-                if (rev.length() == 0) { continue; }
-                if (mLineIsHeader[i]) {
+                var line = mAllLines[i];
+                if (line.length() == 0) { continue; }
+                if (line.substring(0, 1).equals("|")) {
                     dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(x, y, font,
+                                line.substring(1, line.length()), mJustification);
                 } else {
                     dc.setColor(mColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(x, y, font, line, mJustification);
                 }
-                var totalW = mAllLineWidths[i] as Number;
-                if (totalW < 0) {
-                    totalW = _measureLine(dc, rev);
-                    mAllLineWidths[i] = totalW;
-                }
-                drawTextWithKnownWidth(dc, x, y, mFont as Graphics.FontDefinition,
-                                       rev, totalW, mJustification);
             }
 
             if (mTitleH > 0) {
@@ -314,43 +297,6 @@ module HebrewText {
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
-
-        // Pure string ops — no DC calls, cannot trip the watchdog.
-        // mAllLineWidths is pre-filled with -1; actual widths are measured lazily
-        // on first draw of each line and stored for subsequent frames.
-        private function _buildRenderCache() as Void {
-            mAllLinesReversed = [] as Array<String>;
-            mAllLineWidths    = [] as Array<Number>;
-            mLineIsHeader     = [] as Array<Boolean>;
-
-            for (var i = 0; i < mAllLines.size(); i++) {
-                var line = mAllLines[i];
-                if (line.length() == 0) {
-                    mAllLinesReversed.add("");
-                    mAllLineWidths.add(0);
-                    mLineIsHeader.add(false);
-                } else {
-                    var isHdr = line.substring(0, 1).equals("|");
-                    var text  = isHdr ? line.substring(1, line.length()) : line;
-                    mAllLinesReversed.add(reverseForDisplay(text));
-                    mAllLineWidths.add(-1);
-                    mLineIsHeader.add(isHdr);
-                }
-            }
-            mRenderCacheBuilt = true;
-        }
-
-        private function _measureLine(dc as Graphics.Dc, rev as String) as Number {
-            var len  = rev.length();
-            var w    = 0;
-            var font = mFont as Graphics.FontDefinition;
-            for (var j = 0; j < len; j++) {
-                var ch = rev.substring(j, j + 1);
-                var cw = dc.getTextWidthInPixels(ch, font);
-                w += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
-            }
-            return w;
-        }
 
         private function _xForJustification(w as Number) as Number {
             if (mJustification == Graphics.TEXT_JUSTIFY_CENTER) { return w / 2; }

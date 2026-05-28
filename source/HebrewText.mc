@@ -265,6 +265,77 @@ module HebrewText {
         return result;
     }
 
+    // Word-wrap one text block into lines sized to fit maxWidth, with each
+    // returned line ALREADY reversed for direct LTR drawText display.
+    //
+    // Returns an Array<String> of display-ready lines. Pass each line straight
+    // to dc.drawText() — a single native call per visible line, which is
+    // dramatically faster than per-character drawing during scrolling.
+    //
+    // Trade-off vs. drawText() + layoutLines(): no per-glyph clip window, so
+    // right-edge xadvance values in the font must be correct (fix them in
+    // tools/gen_font.py rather than at draw time).
+    //
+    // Format rules:
+    //   "\n\n"  paragraph break — blank line inserted between paragraphs
+    //   "\n"    soft break      — treated as a space by the word-wrapper
+    //   "|..."  section header  — returned with "|" prefix preserved and the
+    //                             body already reversed for direct drawing
+    function layoutLinesReversed(
+        dc       as Graphics.Dc,
+        text     as String,
+        font     as Graphics.FontDefinition,
+        maxWidth as Number
+    ) as Array<String> {
+        var usable = maxWidth - 40;
+        var result = [] as Array<String>;
+
+        // Section header: one line, "|" prefix preserved, body reversed.
+        if (text.length() > 0 && text.substring(0, 1).equals("|")) {
+            var body = text.substring(1, text.length());
+            result.add("|" + reverseJoin(strSplit(body, " ")));
+            return result;
+        }
+
+        var paragraphs = strSplit(text, "\n\n");
+        for (var p = 0; p < paragraphs.size(); p++) {
+            if (p > 0) { result.add(""); }
+
+            // Flatten soft breaks into spaces.
+            var srcLines = strSplit(paragraphs[p], "\n");
+            var paraText = "";
+            for (var sl = 0; sl < srcLines.size(); sl++) {
+                if (sl > 0 && srcLines[sl].length() > 0) { paraText = paraText + " "; }
+                paraText = paraText + srcLines[sl];
+            }
+
+            var words     = strSplit(paraText, " ");
+            var lineWords = [] as Array<String>;
+            var lineWidth = 0;
+            var spaceW    = dc.getTextWidthInPixels(" ", font);
+
+            for (var wi = 0; wi < words.size(); wi++) {
+                var word = words[wi];
+                if (word.length() == 0) { continue; }
+                var wordW = dc.getTextWidthInPixels(word, font);
+                var sep   = lineWords.size() > 0 ? spaceW : 0;
+
+                if (lineWords.size() > 0 && lineWidth + sep + wordW > usable) {
+                    result.add(reverseJoin(lineWords));
+                    lineWords = [word] as Array<String>;
+                    lineWidth = wordW;
+                } else {
+                    lineWords.add(word);
+                    lineWidth += sep + wordW;
+                }
+            }
+            if (lineWords.size() > 0) {
+                result.add(reverseJoin(lineWords));
+            }
+        }
+        return result;
+    }
+
     // Join words into a space-separated string in logical (forward) order.
     function _joinWords(words as Array<String>) as String {
         var s = "";
