@@ -94,9 +94,40 @@ module HebrewText {
 
     // Pre-reverse a logical Hebrew string for LTR display rendering.
     // Call once at layout time and cache the result; pass it to
-    // drawTextPreprocessed() to avoid repeating this work every frame.
+    // drawTextAlreadyReversed() or drawTextPreprocessed() each frame.
     function reverseForDisplay(text as String) as String {
         return reverseJoin(strSplit(text, " "));
+    }
+
+    // Draw a pre-reversed Hebrew line — output of reverseForDisplay().
+    // Drop-in for drawText() when the reversed string is already cached:
+    // skips the O(n²) character-shuffle and string allocations of reversal,
+    // while still doing the two-pass width+draw so no DC state needs caching.
+    function drawTextAlreadyReversed(
+        dc       as Graphics.Dc,
+        x        as Number,
+        y        as Number,
+        font     as Graphics.FontDefinition,
+        reversed as String,
+        justif   as Number
+    ) as Void {
+        var len = reversed.length();
+        if (len == 0) { return; }
+        var totalW = 0;
+        for (var i = 0; i < len; i++) {
+            var ch = reversed.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            totalW += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+        }
+        var cx = x;
+        if (justif == Graphics.TEXT_JUSTIFY_CENTER)     { cx = x - totalW / 2; }
+        else if (justif == Graphics.TEXT_JUSTIFY_RIGHT) { cx = x - totalW; }
+        for (var i = 0; i < len; i++) {
+            var ch = reversed.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            dc.drawText(cx, y, font, ch, Graphics.TEXT_JUSTIFY_LEFT);
+            cx += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+        }
     }
 
     // Compute per-character advance widths for a display-ready (pre-reversed) string.
