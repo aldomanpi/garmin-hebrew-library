@@ -42,7 +42,7 @@ module HebrewText {
 
     // Per-character advance reduction to prevent Garmin's per-glyph xadvance
     // clipping from cutting off the right edge of each letter.
-    const CHAR_SPACING_ADJUST = 4;
+    const CHAR_SPACING_ADJUST = 3;
 
     // Draw one line of Hebrew text with automatic RTL reversal.
     //
