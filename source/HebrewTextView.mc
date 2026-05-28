@@ -56,12 +56,14 @@ module HebrewText {
         private var mStartOffset  as Number  = 0;
 
         // Render cache: built once after layout, invalidated on text/font change.
-        // Stores pre-reversed strings and header flags only — no DC calls at
-        // build time, so the cache build cannot trip the onUpdate watchdog.
-        // Per-frame drawing still calls getTextWidthInPixels per visible character,
-        // but all string allocation for reversal is eliminated.
+        // mAllLinesReversed + mLineIsHeader are filled immediately (pure string
+        // ops, no DC calls, cannot trip the watchdog).
+        // mAllLineWidths is lazily filled on first draw of each line: -1 means
+        // unmeasured. Once measured the value is stored and subsequent draws use
+        // drawTextWithKnownWidth() — one getTextWidthInPixels pass instead of two.
         private var mRenderCacheBuilt as Boolean        = false;
         private var mAllLinesReversed as Array<String>  = [] as Array<String>;
+        private var mAllLineWidths    as Array<Number>  = [] as Array<Number>;
         private var mLineIsHeader     as Array<Boolean> = [] as Array<Boolean>;
 
         function initialize(options as Lang.Dictionary) {
@@ -293,8 +295,13 @@ module HebrewText {
                 } else {
                     dc.setColor(mColor, Graphics.COLOR_TRANSPARENT);
                 }
-                drawTextAlreadyReversed(dc, x, y, mFont as Graphics.FontDefinition,
-                                        rev, mJustification);
+                var totalW = mAllLineWidths[i] as Number;
+                if (totalW < 0) {
+                    totalW = _measureLine(dc, rev);
+                    mAllLineWidths[i] = totalW;
+                }
+                drawTextWithKnownWidth(dc, x, y, mFont as Graphics.FontDefinition,
+                                       rev, totalW, mJustification);
             }
 
             if (mTitleH > 0) {
@@ -308,24 +315,41 @@ module HebrewText {
 
         // ── Private helpers ──────────────────────────────────────────────────
 
-        // No DC parameter — build is pure string ops so it cannot trip the watchdog.
+        // Pure string ops — no DC calls, cannot trip the watchdog.
+        // mAllLineWidths is pre-filled with -1; actual widths are measured lazily
+        // on first draw of each line and stored for subsequent frames.
         private function _buildRenderCache() as Void {
             mAllLinesReversed = [] as Array<String>;
+            mAllLineWidths    = [] as Array<Number>;
             mLineIsHeader     = [] as Array<Boolean>;
 
             for (var i = 0; i < mAllLines.size(); i++) {
                 var line = mAllLines[i];
                 if (line.length() == 0) {
                     mAllLinesReversed.add("");
+                    mAllLineWidths.add(0);
                     mLineIsHeader.add(false);
                 } else {
                     var isHdr = line.substring(0, 1).equals("|");
                     var text  = isHdr ? line.substring(1, line.length()) : line;
                     mAllLinesReversed.add(reverseForDisplay(text));
+                    mAllLineWidths.add(-1);
                     mLineIsHeader.add(isHdr);
                 }
             }
             mRenderCacheBuilt = true;
+        }
+
+        private function _measureLine(dc as Graphics.Dc, rev as String) as Number {
+            var len  = rev.length();
+            var w    = 0;
+            var font = mFont as Graphics.FontDefinition;
+            for (var j = 0; j < len; j++) {
+                var ch = rev.substring(j, j + 1);
+                var cw = dc.getTextWidthInPixels(ch, font);
+                w += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+            }
+            return w;
         }
 
         private function _xForJustification(w as Number) as Number {

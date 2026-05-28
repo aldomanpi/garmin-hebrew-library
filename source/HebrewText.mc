@@ -99,6 +99,32 @@ module HebrewText {
         return reverseJoin(strSplit(text, " "));
     }
 
+    // Draw a pre-reversed Hebrew line with a pre-computed total pixel width.
+    // Use this after the first drawTextAlreadyReversed() call has measured the
+    // line and the caller has cached totalW — drawing then needs only one
+    // getTextWidthInPixels pass (to advance cx) instead of two.
+    function drawTextWithKnownWidth(
+        dc       as Graphics.Dc,
+        x        as Number,
+        y        as Number,
+        font     as Graphics.FontDefinition,
+        reversed as String,
+        totalW   as Number,
+        justif   as Number
+    ) as Void {
+        var len = reversed.length();
+        if (len == 0) { return; }
+        var cx = x;
+        if (justif == Graphics.TEXT_JUSTIFY_CENTER)     { cx = x - totalW / 2; }
+        else if (justif == Graphics.TEXT_JUSTIFY_RIGHT) { cx = x - totalW; }
+        for (var i = 0; i < len; i++) {
+            var ch = reversed.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            dc.drawText(cx, y, font, ch, Graphics.TEXT_JUSTIFY_LEFT);
+            cx += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+        }
+    }
+
     // Draw a pre-reversed Hebrew line — output of reverseForDisplay().
     // Drop-in for drawText() when the reversed string is already cached:
     // skips the O(n²) character-shuffle and string allocations of reversal,
