@@ -38,7 +38,7 @@ Arguments
 --font-size    Glyph render size in pixels (default: 22).
 """
 
-import argparse, math, os, re, unicodedata
+import argparse, json, math, os, re, unicodedata
 from PIL import Image, ImageFont, ImageDraw
 
 
@@ -120,12 +120,11 @@ def read_text_from_file(path):
     return src
 
 
+EXTRA_RIGHT = 2  # extra pixels beyond getbbox() to capture FreeType ink bleed
+
 def render_glyph(text, font, padding=0):
-    # padding=0: glyph image dimensions == bbox dimensions == xadvance.
-    # No transparent border means adjacent glyphs can't overwrite each other's
-    # ink when packed tightly.
     bbox  = font.getbbox(text)
-    w     = max(bbox[2] - bbox[0], 1) + padding * 2
+    w     = max(bbox[2] - bbox[0], 1) + padding * 2 + EXTRA_RIGHT
     h     = max(bbox[3] - bbox[1], 1) + padding * 2
     img   = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw  = ImageDraw.Draw(img)
@@ -133,7 +132,7 @@ def render_glyph(text, font, padding=0):
               text, font=font, fill=(255, 255, 255, 255))
     xoff = -padding
     yoff = bbox[1] - padding
-    xadv = max(bbox[2] - bbox[0], 1)
+    xadv = max(bbox[2] - bbox[0], 1) + EXTRA_RIGHT
     return img, xoff, yoff, xadv
 
 
@@ -161,32 +160,36 @@ def main():
             "supply another Hebrew TTF via --font."
         )
 
-    # Collect all Hebrew text from the input files.
-    all_text = ""
-    for path in (args.text_files or []):
-        all_text += read_text_from_file(path) + "\n"
-    if not all_text.strip():
-        print("Warning: no --text-files provided; font will cover only base "
-              "characters and bare Hebrew consonants (no nikud combinations).")
+    # Load stable PUA map from pua_map.json if present; otherwise scan text files.
+    pua_json_path = os.path.join(os.path.dirname(__file__), "pua_map.json")
+    if os.path.exists(pua_json_path):
+        with open(pua_json_path, encoding="utf-8") as f:
+            pua_data = json.load(f)
+        pua_map     = {seq: chr(cp) for seq, cp in pua_data["combining"].items()}
+        pua_base_map = {ch: chr(cp) for ch, cp in pua_data["bare"].items()}
+        print(f"  Loaded {len(pua_map)} combining + {len(pua_base_map)} bare from pua_map.json")
+    else:
+        # Fallback: scan text files dynamically.
+        all_text = ""
+        for path in (args.text_files or []):
+            all_text += read_text_from_file(path) + "\n"
+        if not all_text.strip():
+            print("Warning: no pua_map.json and no --text-files; font will be sparse.")
+        combining_seqs = sorted(extract_combining_seqs(all_text),
+                                key=lambda s: (-len(s), s))
+        pua_map = {}
+        for i, seq in enumerate(combining_seqs):
+            pua_map["".join(seq)] = chr(PUA_START + i)
+        pua_base_start = PUA_START + len(combining_seqs)
+        pua_base_map = {}
+        for i, ch in enumerate(BARE_HEBREW):
+            pua_base_map[ch] = chr(pua_base_start + i)
+        print(f"  {len(combining_seqs)} combining + {len(pua_base_map)} bare (scanned)")
 
-    # Build PUA map for combining sequences.
-    combining_seqs = sorted(extract_combining_seqs(all_text),
-                            key=lambda s: (-len(s), s))
-    pua_map = {}
-    for i, seq in enumerate(combining_seqs):
-        pua_map["".join(seq)] = chr(PUA_START + i)
-
-    print(f"  {len(combining_seqs)} combining sequences -> "
-          f"PUA U+{PUA_START:04X}...U+{PUA_START + len(combining_seqs) - 1:04X}")
-
-    # Build PUA aliases for bare Hebrew consonants.
-    pua_base_start = PUA_START + len(combining_seqs)
-    pua_base_map = {}
-    for i, ch in enumerate(BARE_HEBREW):
-        pua_base_map[ch] = chr(pua_base_start + i)
-
-    print(f"  {len(pua_base_map)} bare-Hebrew chars -> "
-          f"PUA U+{pua_base_start:04X}...U+{pua_base_start + len(pua_base_map) - 1:04X}")
+    n_comb = len(pua_map)
+    n_bare = len(pua_base_map)
+    print(f"  PUA combining U+{PUA_START:04X}..U+{PUA_START+n_comb-1:04X}, "
+          f"bare U+{PUA_START+n_comb:04X}..U+{PUA_START+n_comb+n_bare-1:04X}")
 
     # Assemble full glyph list.
     glyph_list = [(ch, ord(ch)) for ch in BASE_CHARS]
@@ -205,7 +208,7 @@ def main():
     ROWS           = math.ceil(len(glyph_list) / COLS)
     # Cell allowance: combined Hebrew letter+nikkud glyphs need vertical
     # headroom even with zero padding; horizontal cell stays generous too.
-    CELL_W         = args.font_size + 6
+    CELL_W         = args.font_size + 6 + EXTRA_RIGHT
     CELL_H         = args.font_size + 12
     IMG_W          = next_pow2(COLS * CELL_W)
     IMG_H          = next_pow2(ROWS * CELL_H)

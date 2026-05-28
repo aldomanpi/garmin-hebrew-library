@@ -1,6 +1,5 @@
 import Toybox.Graphics;
 import Toybox.Lang;
-import Toybox.System;
 
 module HebrewText {
 
@@ -66,7 +65,6 @@ module HebrewText {
     ) as Void {
         var reversed = reverseJoin(strSplit(text, " "));
         var len = reversed.length();
-        System.println("HT drawText v2 len=" + len + " x=" + x + " just=" + justification);
         if (len == 0) { return; }
 
         // Compute total rendered width using adjusted advances.
@@ -85,13 +83,10 @@ module HebrewText {
         } else {
             cx = x;
         }
-        System.println("HT totalW=" + totalW + " startCx=" + cx);
 
         for (var i = 0; i < len; i++) {
             var ch = reversed.substring(i, i + 1);
             var cw = dc.getTextWidthInPixels(ch, font);
-            var cp = ch.toCharArray()[0].toNumber();
-            System.println("HT i=" + i + " cp=" + cp + " cw=" + cw + " cx=" + cx);
             dc.drawText(cx, y, font, ch, Graphics.TEXT_JUSTIFY_LEFT);
             cx += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
         }
