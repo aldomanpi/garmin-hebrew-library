@@ -40,11 +40,17 @@ module HebrewText {
         return s;
     }
 
+    // Per-character advance reduction to prevent Garmin's per-glyph xadvance
+    // clipping from cutting off the right edge of each letter.
+    const CHAR_SPACING_ADJUST = 4;
+
     // Draw one line of Hebrew text with automatic RTL reversal.
     //
     // Drop-in replacement for dc.drawText() for PUA-encoded Hebrew strings.
     // Text may contain multiple space-separated words; word order and character
     // order within each word are both reversed so the string renders RTL.
+    // Characters are drawn one at a time so each has its own clip window,
+    // preventing xadvance-based clipping from cutting the right edge of glyphs.
     //
     // For standard right-aligned Hebrew text:
     //   HebrewText.drawText(dc, dc.getWidth() - 8, y, font, text,
@@ -57,7 +63,33 @@ module HebrewText {
         text          as String,
         justification as Number
     ) as Void {
-        dc.drawText(x, y, font, reverseJoin(strSplit(text, " ")), justification);
+        var reversed = reverseJoin(strSplit(text, " "));
+        var len = reversed.length();
+        if (len == 0) { return; }
+
+        // Compute total rendered width using adjusted advances.
+        var totalW = 0;
+        for (var i = 0; i < len; i++) {
+            var ch = reversed.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            totalW += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+        }
+
+        var cx;
+        if (justification == Graphics.TEXT_JUSTIFY_CENTER) {
+            cx = x - totalW / 2;
+        } else if (justification == Graphics.TEXT_JUSTIFY_RIGHT) {
+            cx = x - totalW;
+        } else {
+            cx = x;
+        }
+
+        for (var i = 0; i < len; i++) {
+            var ch = reversed.substring(i, i + 1);
+            var cw = dc.getTextWidthInPixels(ch, font);
+            dc.drawText(cx, y, font, ch, Graphics.TEXT_JUSTIFY_LEFT);
+            cx += ch.equals(" ") ? cw : (cw - CHAR_SPACING_ADJUST);
+        }
     }
 
     // Word-wrap one text block into lines sized to fit maxWidth.
@@ -105,7 +137,8 @@ module HebrewText {
             for (var wi = 0; wi < words.size(); wi++) {
                 var word = words[wi];
                 if (word.length() == 0) { continue; }
-                var wordW  = dc.getTextWidthInPixels(word, font);
+                var wordW  = dc.getTextWidthInPixels(word, font)
+                           - CHAR_SPACING_ADJUST * word.length();
                 var spaceW = lineWords.size() > 0
                     ? dc.getTextWidthInPixels(" ", font) : 0;
 
