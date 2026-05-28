@@ -197,7 +197,7 @@ def main():
     pil_font       = ImageFont.truetype(font_path, args.font_size)
     ascent, descent = pil_font.getmetrics()
     line_height    = ascent + descent + 2
-    PADDING        = 3
+    PADDING        = 1
     COLS           = 24
     ROWS           = math.ceil(len(glyph_list) / COLS)
     CELL_W         = args.font_size + PADDING * 4
