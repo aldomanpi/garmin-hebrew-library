@@ -73,7 +73,9 @@ module HebrewText {
         private var mFontSize     as Number  = FONT_SIZE_MEDIUM;
 
         function initialize(options as Lang.Dictionary) {
-            View.initialize();
+            // Fully qualified so the call is unambiguous when View is subclassed
+            // (an unqualified `View.initialize()` resolves to this class itself).
+            WatchUi.View.initialize();
 
             var v;
             mLines         = [] as Array<String>;
@@ -104,6 +106,17 @@ module HebrewText {
         function setText(text as String) as Void {
             mLines      = [text];
             mLayoutDone = false;
+            WatchUi.requestUpdate();
+        }
+
+        // Replace the displayed pages (multi-page counterpart of setText).
+        // Scroll resets to the top since the content — and therefore its
+        // layout — has changed.
+        function setPages(pages as Array<String>) as Void {
+            mLines        = pages;
+            mLayoutDone   = false;
+            mScrollPx     = 0;
+            mScrollTarget = 0;
             WatchUi.requestUpdate();
         }
 
