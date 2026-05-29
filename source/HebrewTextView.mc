@@ -5,6 +5,14 @@ import Toybox.WatchUi;
 
 module HebrewText {
 
+    // Font size constants for use with the :fontSize View option.
+    // Apps that provide custom Hebrew fonts at multiple sizes should name them
+    // hebrewFontSmall, hebrewFont (medium), and hebrewFontLarge in fonts.xml.
+    // See tools/gen_font.py --font-size for generating size variants.
+    const FONT_SIZE_SMALL  = 0;
+    const FONT_SIZE_MEDIUM = 1;
+    const FONT_SIZE_LARGE  = 2;
+
     // Full-screen scrollable Hebrew text viewer.
     //
     // Constructor options:
@@ -22,7 +30,15 @@ module HebrewText {
     //                                       :top    — first line at top (default).
     //                                       :center — first line at vertical centre;
     //                                                 scrolling still reaches the top.
-    //   :color, :backgroundColor, :font  — as WatchUi.TextArea.
+    //   :fontSize      => Number          — HebrewText.FONT_SIZE_SMALL / _MEDIUM /
+    //                                       _LARGE (default: FONT_SIZE_MEDIUM).
+    //                                       Loads hebrewFontSmall / hebrewFont /
+    //                                       hebrewFontLarge from the app's Rez.Fonts;
+    //                                       falls back to hebrewFont then system fonts
+    //                                       when the size-specific resource is absent.
+    //                                       Ignored when :font is also supplied.
+    //   :color, :backgroundColor, :font  — as WatchUi.TextArea.  Passing :font
+    //                                       overrides :fontSize completely.
     //
     //   WatchUi.pushView(view, new HebrewText.Delegate(view), WatchUi.SLIDE_LEFT);
     //
@@ -54,6 +70,7 @@ module HebrewText {
         private var mCustomFont   as Graphics.FontDefinition? = null;
         private var mStartCenter  as Boolean = false;
         private var mStartOffset  as Number  = 0;
+        private var mFontSize     as Number  = FONT_SIZE_MEDIUM;
 
         function initialize(options as Lang.Dictionary) {
             View.initialize();
@@ -81,6 +98,7 @@ module HebrewText {
             v = options.get(:font);            if (v != null) { mCustomFont    = v as Graphics.FontDefinition; }
             v = options.get(:justification);   if (v != null) { mJustification = v as Number; }
             v = options.get(:startPosition);   if (v != null) { mStartCenter   = v.equals(:center); }
+            v = options.get(:fontSize);        if (v != null) { mFontSize      = v as Number; }
         }
 
         function setText(text as String) as Void {
@@ -109,6 +127,18 @@ module HebrewText {
             mFont       = null;
             mFontH      = 0;
             mLayoutDone = false;
+        }
+
+        function setFontSize(size as Number) as Void {
+            mFontSize   = size;
+            mFont       = null;
+            mFontH      = 0;
+            mLayoutDone = false;
+            WatchUi.requestUpdate();
+        }
+
+        function getFontSize() as Number {
+            return mFontSize;
         }
 
         // ── Navigation ───────────────────────────────────────────────────────
@@ -315,11 +345,30 @@ module HebrewText {
             if (mCustomFont != null) { return mCustomFont as Graphics.FontDefinition; }
             var f = null as Graphics.FontDefinition?;
             try {
-                f = WatchUi.loadResource(Rez.Fonts.hebrewFont) as Graphics.FontDefinition;
+                if (mFontSize == FONT_SIZE_SMALL) {
+                    f = WatchUi.loadResource(Rez.Fonts.hebrewFontSmall) as Graphics.FontDefinition;
+                } else if (mFontSize == FONT_SIZE_LARGE) {
+                    f = WatchUi.loadResource(Rez.Fonts.hebrewFontLarge) as Graphics.FontDefinition;
+                } else {
+                    f = WatchUi.loadResource(Rez.Fonts.hebrewFont) as Graphics.FontDefinition;
+                }
             } catch (e instanceof Lang.Exception) {
                 f = null;
             }
-            if (f == null) { f = Graphics.FONT_MEDIUM as Graphics.FontDefinition; }
+            // Fall back to hebrewFont if size variant failed to load.
+            if (f == null && mFontSize != FONT_SIZE_MEDIUM) {
+                try {
+                    f = WatchUi.loadResource(Rez.Fonts.hebrewFont) as Graphics.FontDefinition;
+                } catch (e instanceof Lang.Exception) {
+                    f = null;
+                }
+            }
+            // Last resort: system font scaled to match the requested size.
+            if (f == null) {
+                if (mFontSize == FONT_SIZE_SMALL)      { f = Graphics.FONT_SMALL  as Graphics.FontDefinition; }
+                else if (mFontSize == FONT_SIZE_LARGE) { f = Graphics.FONT_LARGE  as Graphics.FontDefinition; }
+                else                                   { f = Graphics.FONT_MEDIUM as Graphics.FontDefinition; }
+            }
             return f as Graphics.FontDefinition;
         }
     }
