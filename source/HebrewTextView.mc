@@ -48,29 +48,34 @@ module HebrewText {
     //   "|..."  section header (drawn dimmer than body text)
     class View extends WatchUi.View {
 
+        // NOTE: these are intentionally declared without inline initializers.
+        // A class whose fields are initialized inline cannot be subclassed in
+        // Monkey C (the synthesized field-initializer recurses into the
+        // subclass and overflows the stack); all defaults are set in
+        // initialize() instead.
         private var mLines        as Array<String>;
         private var mTitle        as String;
         private var mColor        as Graphics.ColorType;
         private var mBgColor      as Graphics.ColorType;
         private var mJustification as Number;
-        private var mAllLines     as Array<String> = [] as Array<String>;
-        private var mScrollPx     as Number  = 0;
-        private var mScrollTarget as Number  = 0;
-        private var mScrollTimer  as Timer.Timer? = null;
-        private var mDragging     as Boolean = false;
-        private var mFirstMove    as Boolean = true;
-        private var mPrevDragY    as Number  = 0;
-        private var mVelocity     as Float   = 0.0f;
-        private var mMomentum     as Boolean = false;
-        private var mLayoutDone   as Boolean = false;
-        private var mFont         as Graphics.FontDefinition? = null;
-        private var mFontH        as Number  = 0;
-        private var mDcHeight     as Number  = 0;
-        private var mTitleH       as Number  = 0;
-        private var mCustomFont   as Graphics.FontDefinition? = null;
-        private var mStartCenter  as Boolean = false;
-        private var mStartOffset  as Number  = 0;
-        private var mFontSize     as Number  = FONT_SIZE_MEDIUM;
+        private var mAllLines     as Array<String>;
+        private var mScrollPx     as Number;
+        private var mScrollTarget as Number;
+        private var mScrollTimer  as Timer.Timer?;
+        private var mDragging     as Boolean;
+        private var mFirstMove    as Boolean;
+        private var mPrevDragY    as Number;
+        private var mVelocity     as Float;
+        private var mMomentum     as Boolean;
+        private var mLayoutDone   as Boolean;
+        private var mFont         as Graphics.FontDefinition?;
+        private var mFontH        as Number;
+        private var mDcHeight     as Number;
+        private var mTitleH       as Number;
+        private var mCustomFont   as Graphics.FontDefinition?;
+        private var mStartCenter  as Boolean;
+        private var mStartOffset  as Number;
+        private var mFontSize     as Number;
 
         function initialize(options as Lang.Dictionary) {
             // Fully qualified so the call is unambiguous when View is subclassed
@@ -83,6 +88,24 @@ module HebrewText {
             mColor         = Graphics.COLOR_WHITE as Graphics.ColorType;
             mBgColor       = Graphics.COLOR_BLACK as Graphics.ColorType;
             mJustification = Graphics.TEXT_JUSTIFY_RIGHT;
+            mAllLines      = [] as Array<String>;
+            mScrollPx      = 0;
+            mScrollTarget  = 0;
+            mScrollTimer   = null;
+            mDragging      = false;
+            mFirstMove     = true;
+            mPrevDragY     = 0;
+            mVelocity      = 0.0f;
+            mMomentum      = false;
+            mLayoutDone    = false;
+            mFont          = null;
+            mFontH         = 0;
+            mDcHeight      = 0;
+            mTitleH        = 0;
+            mCustomFont    = null;
+            mStartCenter   = false;
+            mStartOffset   = 0;
+            mFontSize      = FONT_SIZE_MEDIUM;
 
             // :pages — Array<String>, each element laid out independently.
             // :text  — String, convenience alias for a single-element :pages.
